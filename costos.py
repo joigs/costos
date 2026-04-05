@@ -414,9 +414,9 @@ def mostrar_calendario():
 
     st.markdown("<div class='calendar-editor'>", unsafe_allow_html=True)
     st.subheader(f"{fecha_mostrada}")
-    st.caption(f"Escribiendo como {usuario_actual['real_name']}")
     st.text_area("Texto", height=90, key="editor_texto")
     col_guardar, col_borrar = st.columns(2)
+    
     with col_guardar:
         if st.button("Guardar", use_container_width=True):
             contenido = st.session_state.editor_texto.strip()
@@ -424,14 +424,16 @@ def mostrar_calendario():
                 st.error("Debes escribir un texto.")
             else:
                 guardar_entrada(usuario_actual["id"], fecha_clave, contenido)
-                st.session_state.editor_fecha = fecha_clave
-                st.session_state.editor_texto = contenido
+                
+          
+                st.session_state.editor_fecha = "" 
                 st.rerun()
+                
     with col_borrar:
         if st.button("Eliminar", use_container_width=True, disabled=entrada_propia is None):
             eliminar_entrada(usuario_actual["id"], fecha_clave)
-            st.session_state.editor_fecha = fecha_clave
-            st.session_state.editor_texto = ""
+            
+            st.session_state.editor_fecha = ""
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
