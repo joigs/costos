@@ -15,8 +15,6 @@ import extra_streamlit_components as stx
 st.set_page_config(page_title="UF por Ascensor", layout="wide")
 
 
-cookie_manager = stx.CookieManager()
-
 if "calendario_mes" not in st.session_state:
     st.session_state.calendario_mes = date.today().month
 if "calendario_anio" not in st.session_state:
@@ -29,6 +27,14 @@ if "editor_fecha" not in st.session_state:
     st.session_state.editor_fecha = ""
 if "editor_texto" not in st.session_state:
     st.session_state.editor_texto = ""
+
+
+if "logout_requested" not in st.session_state:
+    st.session_state.logout_requested = False
+if "login_requested" not in st.session_state:
+    st.session_state.login_requested = False
+if "ignore_cookie" not in st.session_state:
+    st.session_state.ignore_cookie = False
 
 vista_actual = st.query_params.get("vista", "calendario")
 if vista_actual != "costos":
@@ -134,7 +140,37 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-# Obtener valor de la UF automáticamente desde mindicador.cl
+
+
+cookie_manager = stx.CookieManager()
+
+
+if st.session_state.logout_requested:
+    cookie_manager.delete("session_username")
+    st.session_state.usuario_actual = None
+    st.session_state.editor_fecha = ""
+    st.session_state.editor_texto = ""
+    st.session_state.logout_requested = False
+    st.session_state.ignore_cookie = True
+    st.query_params.clear()
+
+
+if st.session_state.login_requested:
+    if st.session_state.usuario_actual:
+        cookie_manager.set("session_username", st.session_state.usuario_actual["username"], expires_at=datetime.now() + timedelta(days=30))
+    st.session_state.login_requested = False
+
+
+if st.session_state.usuario_actual is None and not st.session_state.ignore_cookie:
+    cookies = cookie_manager.get_all()
+    if "session_username" in cookies:
+        usuario_recup = obtener_usuario_por_username(cookies["session_username"])
+        if usuario_recup:
+            st.session_state.usuario_actual = usuario_recup
+
+st.session_state.ignore_cookie = False
+
+
 @st.cache_data
 def obtener_valor_uf(fecha: str):
     try:
@@ -159,13 +195,6 @@ def ir_a_costos():
     st.query_params["vista"] = "costos"
 
 def ir_a_calendario():
-    st.query_params.clear()
-
-def cerrar_sesion():
-    st.session_state.usuario_actual = None
-    st.session_state.editor_fecha = ""
-    st.session_state.editor_texto = ""
-    cookie_manager.delete("session_username")
     st.query_params.clear()
 
 def color_usuario(real_name):
@@ -346,9 +375,9 @@ def mostrar_login():
                 st.error("Credenciales inválidas.")
             else:
                 st.session_state.usuario_actual = usuario
+                st.session_state.login_requested = True 
                 st.session_state.editor_fecha = ""
                 st.session_state.editor_texto = ""
-                cookie_manager.set("session_username", usuario["username"], expires_at=datetime.now() + timedelta(days=30))
                 st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -382,7 +411,7 @@ def mostrar_calendario():
         st.markdown(f"<div class='session-pill'>Sesión: {html.escape(usuario_actual['real_name'])}</div>", unsafe_allow_html=True)
     with cab_der:
         if st.button("Cerrar sesión", use_container_width=True, key="cerrar_sesion_calendario"):
-            cerrar_sesion()
+            st.session_state.logout_requested = True
             st.rerun()
 
     col_a, col_b, col_c, col_d = st.columns([1, 1, 1, 1])
@@ -434,15 +463,12 @@ def mostrar_calendario():
                 st.error("Debes escribir un texto.")
             else:
                 guardar_entrada(usuario_actual["id"], fecha_clave, contenido)
-                
-          
                 st.session_state.editor_fecha = "" 
                 st.rerun()
                 
     with col_borrar:
         if st.button("Eliminar", use_container_width=True, disabled=entrada_propia is None):
             eliminar_entrada(usuario_actual["id"], fecha_clave)
-            
             st.session_state.editor_fecha = ""
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
@@ -498,18 +524,6 @@ def mostrar_calendario():
 
 
 if st.session_state.usuario_actual is None:
-    cookie_user = cookie_manager.get("session_username")
-    if cookie_user:
-        usuario_recuperado = obtener_usuario_por_username(cookie_user)
-        if usuario_recuperado:
-            st.session_state.usuario_actual = {
-                "id": usuario_recuperado["id"],
-                "username": usuario_recuperado["username"],
-                "real_name": usuario_recuperado["real_name"]
-            }
-
-
-if st.session_state.usuario_actual is None:
     mostrar_login()
 else:
     if vista_actual == "costos":
@@ -520,7 +534,7 @@ else:
             st.markdown(f"<div class='session-pill'>Sesión: {html.escape(usuario_actual['real_name'])}</div>", unsafe_allow_html=True)
         with cab_der:
             if st.button("Cerrar sesión", use_container_width=True, key="cerrar_sesion_costos"):
-                cerrar_sesion()
+                st.session_state.logout_requested = True # Activa la orden de borrar cookie
                 st.rerun()
 
         st.title("📊 Cálculo de UF por Ascensor (Santiago / Zona Norte)")
