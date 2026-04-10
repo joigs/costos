@@ -4,10 +4,15 @@ import calendar
 import html
 import hashlib
 import bcrypt
+import time
 from datetime import date
 from sqlalchemy import text
+import extra_streamlit_components as stx  
 
 st.set_page_config(page_title="UF por Ascensor", layout="wide")
+
+
+cookie_manager = stx.CookieManager()
 
 if "calendario_mes" not in st.session_state:
     st.session_state.calendario_mes = date.today().month
@@ -157,6 +162,7 @@ def cerrar_sesion():
     st.session_state.usuario_actual = None
     st.session_state.editor_fecha = ""
     st.session_state.editor_texto = ""
+    cookie_manager.delete("session_username")
     st.query_params.clear()
 
 def color_usuario(real_name):
@@ -337,8 +343,11 @@ def mostrar_login():
                 st.error("Credenciales inválidas.")
             else:
                 st.session_state.usuario_actual = usuario
+
+                cookie_manager.set("session_username", usuario["username"], max_age=30*24*60*60)
                 st.session_state.editor_fecha = ""
                 st.session_state.editor_texto = ""
+                time.sleep(0.2)
                 st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -482,6 +491,20 @@ def mostrar_calendario():
                             unsafe_allow_html=True
                         )
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+
+
+
+if st.session_state.usuario_actual is None:
+    session_token = cookie_manager.get(cookie="session_username")
+    if session_token and isinstance(session_token, str):
+        usuario_recuperado = obtener_usuario_por_username(session_token)
+        if usuario_recuperado:
+            st.session_state.usuario_actual = {
+                "id": usuario_recuperado["id"],
+                "username": usuario_recuperado["username"],
+                "real_name": usuario_recuperado["real_name"]
+            }
+
 
 if st.session_state.usuario_actual is None:
     mostrar_login()
