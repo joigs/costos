@@ -14,7 +14,6 @@ import extra_streamlit_components as stx
 
 st.set_page_config(page_title="UF por Ascensor", layout="wide")
 
-
 if "calendario_mes" not in st.session_state:
     st.session_state.calendario_mes = date.today().month
 if "calendario_anio" not in st.session_state:
@@ -27,8 +26,6 @@ if "editor_fecha" not in st.session_state:
     st.session_state.editor_fecha = ""
 if "editor_texto" not in st.session_state:
     st.session_state.editor_texto = ""
-
-
 if "logout_requested" not in st.session_state:
     st.session_state.logout_requested = False
 if "login_requested" not in st.session_state:
@@ -141,35 +138,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-
 cookie_manager = stx.CookieManager()
-
-
-if st.session_state.logout_requested:
-    cookie_manager.delete("session_username")
-    st.session_state.usuario_actual = None
-    st.session_state.editor_fecha = ""
-    st.session_state.editor_texto = ""
-    st.session_state.logout_requested = False
-    st.session_state.ignore_cookie = True
-    st.query_params.clear()
-
-
-if st.session_state.login_requested:
-    if st.session_state.usuario_actual:
-        cookie_manager.set("session_username", st.session_state.usuario_actual["username"], expires_at=datetime.now() + timedelta(days=30))
-    st.session_state.login_requested = False
-
-
-if st.session_state.usuario_actual is None and not st.session_state.ignore_cookie:
-    cookies = cookie_manager.get_all()
-    if "session_username" in cookies:
-        usuario_recup = obtener_usuario_por_username(cookies["session_username"])
-        if usuario_recup:
-            st.session_state.usuario_actual = usuario_recup
-
-st.session_state.ignore_cookie = False
-
 
 @st.cache_data
 def obtener_valor_uf(fecha: str):
@@ -375,7 +344,7 @@ def mostrar_login():
                 st.error("Credenciales inválidas.")
             else:
                 st.session_state.usuario_actual = usuario
-                st.session_state.login_requested = True 
+                st.session_state.login_requested = True
                 st.session_state.editor_fecha = ""
                 st.session_state.editor_texto = ""
                 st.rerun()
@@ -521,7 +490,28 @@ def mostrar_calendario():
                         )
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
+if st.session_state.logout_requested:
+    cookie_manager.delete("session_username")
+    st.session_state.usuario_actual = None
+    st.session_state.editor_fecha = ""
+    st.session_state.editor_texto = ""
+    st.session_state.logout_requested = False
+    st.session_state.ignore_cookie = True
+    st.query_params.clear()
 
+if st.session_state.login_requested:
+    if st.session_state.usuario_actual:
+        cookie_manager.set("session_username", st.session_state.usuario_actual["username"], expires_at=datetime.now() + timedelta(days=30))
+    st.session_state.login_requested = False
+
+if st.session_state.usuario_actual is None and not st.session_state.ignore_cookie:
+    cookies = cookie_manager.get_all()
+    if "session_username" in cookies:
+        usuario_recup = obtener_usuario_por_username(cookies["session_username"])
+        if usuario_recup:
+            st.session_state.usuario_actual = usuario_recup
+
+st.session_state.ignore_cookie = False
 
 if st.session_state.usuario_actual is None:
     mostrar_login()
@@ -534,7 +524,7 @@ else:
             st.markdown(f"<div class='session-pill'>Sesión: {html.escape(usuario_actual['real_name'])}</div>", unsafe_allow_html=True)
         with cab_der:
             if st.button("Cerrar sesión", use_container_width=True, key="cerrar_sesion_costos"):
-                st.session_state.logout_requested = True # Activa la orden de borrar cookie
+                st.session_state.logout_requested = True
                 st.rerun()
 
         st.title("📊 Cálculo de UF por Ascensor (Santiago / Zona Norte)")
@@ -543,10 +533,8 @@ else:
             ir_a_calendario()
             st.rerun()
 
-        # Zona
         zona = st.selectbox("Zona", ["Santiago/Sur", "Zona Norte"])
 
-        # Fecha para valor UF
         st.subheader("📅 Fecha para la UF")
         hoy = date.today()
         fecha_seleccionada = st.date_input("Fecha UF", max_value=hoy, value=hoy)
@@ -556,7 +544,6 @@ else:
             st.error("No se pudo obtener el valor de la UF para esta fecha.")
             st.stop()
 
-        # Costos en CLP (como números enteros)
         st.subheader("💸 Costos en pesos chilenos")
         comida = st.number_input("Costo de comida", min_value=0, value=0, step=1000, format="%d")
         viaje = st.number_input("Costo pasaje avión", min_value=0, value=0, step=10000, format="%d")
@@ -564,13 +551,11 @@ else:
         hotel = st.number_input("Costo de hotel por noche", min_value=0, value=0, step=1000, format="%d")
         movilizacion = st.number_input("Costo de movilización", min_value=0, value=0, step=1000, format="%d")
 
-        # Parámetros de cálculo
         st.subheader("🔢 Parámetros específicos")
         ascensores = st.number_input("Cantidad de ascensores", min_value=1, max_value=100, value=5, step=1)
         noches = st.number_input("Cantidad de noches", min_value=0, max_value=10, value=2, step=1)
         uf_ascensor = st.number_input("UF adicional por ascensor", min_value=1.0, max_value=10.0, value=3.5, step=0.1)
 
-        # Función de cálculo
         def calcular_costo(noches):
             if zona == "Santiago/Sur":
                 if noches == 0:
@@ -583,11 +568,9 @@ else:
                 else:
                     return (noches * hotel) + ((noches + 1) * comida) + viaje + movilizacion
 
-        # Cálculo total en UF
         costo_total_clp = calcular_costo(noches)
         uf_total = (costo_total_clp / valor_uf) + (ascensores * uf_ascensor)
 
-        # Resultado
         st.subheader("📈 Resultado del cálculo")
         st.markdown(f"**Zona:** {zona}  \n"
                     f"**Fecha UF:** {fecha_seleccionada.strftime('%d/%m/%Y')}  \n"
