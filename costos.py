@@ -1,13 +1,16 @@
+import sys
+__import__('pysqlite3')
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
 import streamlit as st
 import requests
 import calendar
 import html
 import hashlib
 import bcrypt
-import time
-from datetime import date
+from datetime import date, datetime, timedelta
 from sqlalchemy import text
-import extra_streamlit_components as stx  
+import extra_streamlit_components as stx
 
 st.set_page_config(page_title="UF por Ascensor", layout="wide")
 
@@ -343,11 +346,9 @@ def mostrar_login():
                 st.error("Credenciales inválidas.")
             else:
                 st.session_state.usuario_actual = usuario
-
-                cookie_manager.set("session_username", usuario["username"], max_age=30*24*60*60)
                 st.session_state.editor_fecha = ""
                 st.session_state.editor_texto = ""
-                time.sleep(0.2)
+                cookie_manager.set("session_username", usuario["username"], expires_at=datetime.now() + timedelta(days=30))
                 st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -423,9 +424,9 @@ def mostrar_calendario():
 
     st.markdown("<div class='calendar-editor'>", unsafe_allow_html=True)
     st.subheader(f"{fecha_mostrada}")
-    st.caption(f"Escribiendo como {usuario_actual['real_name']}")
     st.text_area("Texto", height=90, key="editor_texto")
     col_guardar, col_borrar = st.columns(2)
+    
     with col_guardar:
         if st.button("Guardar", use_container_width=True):
             contenido = st.session_state.editor_texto.strip()
@@ -433,14 +434,16 @@ def mostrar_calendario():
                 st.error("Debes escribir un texto.")
             else:
                 guardar_entrada(usuario_actual["id"], fecha_clave, contenido)
-                st.session_state.editor_fecha = fecha_clave
-                st.session_state.editor_texto = contenido
+                
+          
+                st.session_state.editor_fecha = "" 
                 st.rerun()
+                
     with col_borrar:
         if st.button("Eliminar", use_container_width=True, disabled=entrada_propia is None):
             eliminar_entrada(usuario_actual["id"], fecha_clave)
-            st.session_state.editor_fecha = fecha_clave
-            st.session_state.editor_texto = ""
+            
+            st.session_state.editor_fecha = ""
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -495,9 +498,9 @@ def mostrar_calendario():
 
 
 if st.session_state.usuario_actual is None:
-    session_token = cookie_manager.get(cookie="session_username")
-    if session_token and isinstance(session_token, str):
-        usuario_recuperado = obtener_usuario_por_username(session_token)
+    cookie_user = cookie_manager.get("session_username")
+    if cookie_user:
+        usuario_recuperado = obtener_usuario_por_username(cookie_user)
         if usuario_recuperado:
             st.session_state.usuario_actual = {
                 "id": usuario_recuperado["id"],
