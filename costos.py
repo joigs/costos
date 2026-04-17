@@ -394,7 +394,6 @@ def mostrar_calendario():
         st.selectbox(
             "Mes",
             options=list(meses.keys()),
-            index=st.session_state.calendario_mes - 1,
             format_func=lambda x: meses[x],
             key="calendario_mes"
         )
@@ -402,7 +401,6 @@ def mostrar_calendario():
         st.selectbox(
             "Año",
             options=anios_disponibles,
-            index=anios_disponibles.index(st.session_state.calendario_anio),
             key="calendario_anio"
         )
 
