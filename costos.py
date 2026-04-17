@@ -391,17 +391,17 @@ def mostrar_calendario():
     with col_b:
         st.markdown(f"<div class='calendar-title'>{meses[st.session_state.calendario_mes]} {st.session_state.calendario_anio}</div>", unsafe_allow_html=True)
     with col_c:
-        st.selectbox(
+        st.session_state.calendario_mes = st.selectbox(
             "Mes",
             options=list(meses.keys()),
-            format_func=lambda x: meses[x],
-            key="calendario_mes"
+            index=st.session_state.calendario_mes - 1,
+            format_func=lambda x: meses[x]
         )
     with col_d:
-        st.selectbox(
+        st.session_state.calendario_anio = st.selectbox(
             "Año",
             options=anios_disponibles,
-            key="calendario_anio"
+            index=anios_disponibles.index(st.session_state.calendario_anio)
         )
 
     dias_en_mes = calendar.monthrange(st.session_state.calendario_anio, st.session_state.calendario_mes)[1]
