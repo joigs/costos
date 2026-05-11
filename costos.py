@@ -97,6 +97,25 @@ st.markdown(
         border: 2px solid #22c55e;
         box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.20);
     }
+    .calendar-day-box.holiday {
+        background: rgba(220, 38, 38, 0.18);
+        border: 1px solid rgba(248, 113, 113, 0.55);
+    }
+    .calendar-day-box.holiday.selected {
+        border: 2px solid #f87171;
+        box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.25);
+    }
+    .holiday-badge {
+        display: inline-block;
+        background: rgba(220, 38, 38, 0.30);
+        color: #fecaca;
+        border-radius: 8px;
+        padding: 4px 8px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        margin-top: 4px;
+        margin-bottom: 6px;
+    }
     .calendar-event {
         margin-top: 4px;
         padding: 8px 10px;
@@ -287,6 +306,33 @@ def obtener_entradas_mes(anio, mes):
         )
     return entradas
 
+def obtener_feriados_mes(anio, mes):
+    fecha_inicio = date(anio, mes, 1)
+    if mes == 12:
+        fecha_fin = date(anio + 1, 1, 1)
+    else:
+        fecha_fin = date(anio, mes + 1, 1)
+
+    conn = obtener_conexion()
+    df = conn.query(
+        """
+        SELECT holiday_date
+        FROM holidays
+        WHERE holiday_date >= :fecha_inicio
+          AND holiday_date < :fecha_fin
+        """,
+        params={"fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+        ttl=0
+    )
+
+    feriados = set()
+    if df is None or df.empty:
+        return feriados
+
+    for _, row in df.iterrows():
+        feriados.add(fecha_a_clave(row["holiday_date"]))
+    return feriados
+
 def guardar_entrada(user_id, fecha_clave, contenido):
     conn = obtener_conexion()
     with conn.session as s:
@@ -409,6 +455,7 @@ def mostrar_calendario():
         st.session_state.calendario_dia = dias_en_mes
 
     entradas_mes = obtener_entradas_mes(st.session_state.calendario_anio, st.session_state.calendario_mes)
+    feriados_mes = obtener_feriados_mes(st.session_state.calendario_anio, st.session_state.calendario_mes)
 
     fecha_clave = f"{st.session_state.calendario_anio:04d}-{st.session_state.calendario_mes:02d}-{st.session_state.calendario_dia:02d}"
     fecha_mostrada = f"{st.session_state.calendario_dia:02d}/{st.session_state.calendario_mes:02d}/{st.session_state.calendario_anio}"
@@ -418,26 +465,39 @@ def mostrar_calendario():
 
     sincronizar_editor(fecha_clave, texto_actual)
 
+    es_feriado_seleccionado = fecha_clave in feriados_mes
+
     st.markdown("<div class='calendar-editor'>", unsafe_allow_html=True)
     st.subheader(f"{fecha_mostrada}")
-    st.text_area("Texto", height=90, key="editor_texto")
-    col_guardar, col_borrar = st.columns(2)
-    
-    with col_guardar:
-        if st.button("Guardar", use_container_width=True):
-            contenido = st.session_state.editor_texto.strip()
-            if not contenido:
-                st.error("Debes escribir un texto.")
-            else:
-                guardar_entrada(usuario_actual["id"], fecha_clave, contenido)
-                st.session_state.editor_fecha = "" 
+
+    if es_feriado_seleccionado:
+        st.markdown("<div class='holiday-badge'>🔴 Feriado — no se pueden agregar notas</div>", unsafe_allow_html=True)
+        st.text_area("Texto", height=90, value="", disabled=True, key="editor_texto_feriado")
+        col_guardar, col_borrar = st.columns(2)
+        with col_guardar:
+            st.button("Guardar", use_container_width=True, disabled=True, key="guardar_feriado")
+        with col_borrar:
+            st.button("Eliminar", use_container_width=True, disabled=True, key="eliminar_feriado")
+    else:
+        st.text_area("Texto", height=90, key="editor_texto")
+        col_guardar, col_borrar = st.columns(2)
+
+        with col_guardar:
+            if st.button("Guardar", use_container_width=True):
+                contenido = st.session_state.editor_texto.strip()
+                if not contenido:
+                    st.error("Debes escribir un texto.")
+                else:
+                    guardar_entrada(usuario_actual["id"], fecha_clave, contenido)
+                    st.session_state.editor_fecha = ""
+                    st.rerun()
+
+        with col_borrar:
+            if st.button("Eliminar", use_container_width=True, disabled=entrada_propia is None):
+                eliminar_entrada(usuario_actual["id"], fecha_clave)
+                st.session_state.editor_fecha = ""
                 st.rerun()
-                
-    with col_borrar:
-        if st.button("Eliminar", use_container_width=True, disabled=entrada_propia is None):
-            eliminar_entrada(usuario_actual["id"], fecha_clave)
-            st.session_state.editor_fecha = ""
-            st.rerun()
+
     st.markdown("</div>", unsafe_allow_html=True)
 
     encabezados = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
@@ -457,7 +517,13 @@ def mostrar_calendario():
                 else:
                     fecha_celda = f"{st.session_state.calendario_anio:04d}-{st.session_state.calendario_mes:02d}-{dia:02d}"
                     seleccionado = dia == st.session_state.calendario_dia
-                    clase_seleccion = "calendar-day-box selected" if seleccionado else "calendar-day-box"
+                    es_feriado = fecha_celda in feriados_mes
+                    clases = ["calendar-day-box"]
+                    if es_feriado:
+                        clases.append("holiday")
+                    if seleccionado:
+                        clases.append("selected")
+                    clase_seleccion = " ".join(clases)
 
                     if st.button(f"{dia:02d}", key=f"dia_{fecha_celda}", use_container_width=True):
                         st.session_state.calendario_dia = dia
